@@ -137,6 +137,7 @@ class Main extends PluginBase implements Listener{
     
     
     
+            $this->players[$player->getName()] = [];
     public function onCommand(CommandSender $sender, Command $cmd, $label, array $args){
         switch($cmd->getName()){
             case "default":
