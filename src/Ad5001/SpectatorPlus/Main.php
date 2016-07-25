@@ -21,16 +21,12 @@ class Main extends PluginBase implements Listener{
 
 
    public function onEnable(){
+        $this->saveDefaultConfig();
         $this->reloadConfig();
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
         $this->getServer()->getScheduler()->scheduleRepeatingTask(new setGamemodeTask($this), 5);
         $this->players = [];
         $this->lastPlayer = null;
-    }
-
-
-    public function onLoad(){
-        $this->saveDefaultConfig();
     }
     
     
@@ -65,10 +61,10 @@ class Main extends PluginBase implements Listener{
                             }
                         }
             // }
-        } elseif($this->isSpectator($event->getPlayer()) and $id == 355) {
+        } elseif($this->isSpectator($p) and $id == 355) {
             // if($event->getPacket() instanceof \pocketmine\network\protocol\UseItemPacket) {
                 $p->getInventory()->clearAll();
-                $p->teleport($this->getServer()->getLevelByName($this->getConfig()->get("LobbyWorld"))->getDefaultSpawn());
+                $p->teleport($this->getServer()->getLevelByName($this->getConfig()->get("LobbyWorld"))->getSpawnLocation());
                 $p->sendTip(str_ireplace("{lobby}", $this->getConfig()->get("LobbyWorld"), str_ireplace("{player}", $p->getName(), $this->getConfig()->get("LobbyMessage"))));
             // }
         }
@@ -80,10 +76,16 @@ class Main extends PluginBase implements Listener{
     
     public function onBlockPlace(BlockPlaceEvent $event) {
         $this->test($event->getPlayer(), $event->getBlock()->getId());
+        if($this->isSpectator($event->getPlayer())) {
+            $event->setCancelled();
+        }
     }
     
     public function onBlockBreak(BlockBreakEvent $event) {
         $this->test($event->getPlayer(), $event->getPlayer()->getInventory()->getItemInHand()->getId());
+        if($this->isSpectator($event->getPlayer())) {
+            $event->setCancelled();
+        }
     }
     
     public function onEntityDamage(EntityDamageEvent $event) {
@@ -106,7 +108,7 @@ class Main extends PluginBase implements Listener{
         if($this->getConfig()->get("PrivateSpecChat") == "true") {
             foreach($event->getPlayer()->getLevel()->getPlayers() as $p) {
                 if($this->isSpectator($p)) {
-                    $p->sendMessage
+                    $p->sendMessage(\pocketmine\utils\TextFormat::GRAY . "[SPEC] " . $event->getPlayer()->getName() . " > " . $event->getMessage());
                 }
             }
             $event->setCancelled();
@@ -119,9 +121,11 @@ class Main extends PluginBase implements Listener{
             $player = $event->getPlayer();
             $this->players[$player->getName()] = [];
             $this->lastPlayer = $player;
-        } elseif($this->lastPlayer !== $player and isset($this->players[$event->getPlayer()->getName()])) {
+        } elseif($this->lastPlayer !== $event->getPlayer() and isset($this->players[$event->getPlayer()->getName()])) {
             unset($this->players[$event->getPlayer()->getName()]);
             $event->getPlayer()->setAllowFlight(false);
+            $event->getPlayer()->getInventory()->clearAll();
+            $this->lastPlayer = null;
         }
     }
     

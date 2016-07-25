@@ -13,6 +13,8 @@ TPCompassName: Find player
 BedBackName: Back to lobby
 
 # Name of the lobby world
-LobbyWorld:
+LobbyWorld: world
 
+# Does the spectators have a private chat (true) or speak to everyone (false)
+PrivateSpecChat: true
 ...
