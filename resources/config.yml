@@ -1,0 +1,18 @@
+---
+# Welcome to SpectatorPlus config !
+# Here you can configure every name and messages that are managed by this plugin.
+
+# The message used when teleporting to a player in spectator mode using a compass
+TeleportMessage: "{player}, you have been teleported to {to}. In-game players remaining: {count}"
+# The message when you click the bed to get back to the lobby.
+LobbyMessage: Welcome back to lobby {player}
+
+# Here is the name of the compass
+TPCompassName: Find player
+# Here is the name of the back-to-lobby bed.
+BedBackName: Back to lobby
+
+# Name of the lobby world
+LobbyWorld:
+
+...
