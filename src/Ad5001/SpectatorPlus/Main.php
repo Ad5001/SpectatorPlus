@@ -14,6 +14,7 @@ use pocketmine\event\block\BlockPlaceEvent;
 use pocketmine\event\entity\EntityDamageEvent;
 use pocketmine\item\Item;
 use pocketmine\math\Vector3;
+use pocketmine\entity\Entity;
 use pocketmine\nbt\NBT;
 use pocketmine\Server;
 use pocketmine\Player;
@@ -26,8 +27,8 @@ class Main extends PluginBase implements Listener{
         $this->saveDefaultConfig();
         $this->reloadConfig();
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
-        $this->getServer()->getScheduler()->scheduleRepeatingTask(new setGamemodeTask($this), 5);
-        $this->getServer()->getScheduler()->scheduleRepeatingTask($this->teleportTask = new teleportTask($this), 5);
+        $this->getServer()->getScheduler()->scheduleRepeatingTask(new setGamemodeTask($this), 15);
+        $this->getServer()->getScheduler()->scheduleRepeatingTask($this->teleportTask = new teleportTask($this), 0.5);
         $this->players = [];
         $this->quitedplayers = [];
         $this->lastPlayer = null;
@@ -35,7 +36,7 @@ class Main extends PluginBase implements Listener{
     
     
     public function test(Player $p, int $id) {
-        $this->getLogger()->info("Item : " . $id . ". Is spectator : " . $this->isSpectator($p));
+        // $this->getLogger()->info("Item : " . $id . ". Is spectator : " . $this->isSpectator($p));
         if($this->isSpectator($p) and $id == 345) {
             // if($event->getPacket() instanceof \pocketmine\network\protocol\UseItemPacket) {
                         $founds = [];
@@ -46,6 +47,7 @@ class Main extends PluginBase implements Listener{
                                     array_push($this->players[$p->getName()], $player);
                                     $found = true;
                                     $event->getPlayer()->teleport(new Vector3($player->x, $player->y, $player->z));
+                                    $this->teleportTask->remove($p);
                                     $event->getPlayer()->sendTip(str_ireplace("{to}", $player->getName(), str_ireplace("{player}", $p->getName(), str_ireplace("{count}", count($founds), $this->getConfig()->get("TeleportMessage")))));
                                 }
                             }
@@ -60,6 +62,7 @@ class Main extends PluginBase implements Listener{
                                     array_push($this->players[$p->getName()], $player);
                                     $found = true;
                                     $p->teleport(new Vector3($player->x, $player->y, $player->z));
+                                    $this->teleportTask->remove($p);
                                     $event->getPlayer()->sendTip(str_ireplace("{to}", $player->getName(), str_ireplace("{player}", $p->getName(), str_ireplace("{count}", count($founds), $this->getConfig()->get("TeleportMessage")))));
                                 }
                             }
@@ -68,9 +71,17 @@ class Main extends PluginBase implements Listener{
         } elseif($this->isSpectator($p) and $id == 355) {
             // if($event->getPacket() instanceof \pocketmine\network\protocol\UseItemPacket) {
                 $p->getInventory()->clearAll();
+                $p->setGamemode(2);
+                $p->setGamemode(0);
                 $p->teleport($this->getServer()->getLevelByName($this->getConfig()->get("LobbyWorld"))->getSpawnLocation());
                 $p->sendTip(str_ireplace("{lobby}", $this->getConfig()->get("LobbyWorld"), str_ireplace("{player}", $p->getName(), $this->getConfig()->get("LobbyMessage"))));
+                $this->teleportTask->remove($p);
             // }
+        } elseif($this->isSpectator($p) and $id == Item::FEATHER) {
+            $this->teleportTask->remove($p);
+            $item = Item::get(Item::FEATHER, 0, 1);
+            $item->setNamedTag(NBT::parseJSON('{display:{Name:"§r' . $this->getConfig()->get("EscapeViewName") . '"}}'));
+            $p->getInventory()->remove($item); 
         }
     }
     
@@ -104,10 +115,8 @@ class Main extends PluginBase implements Listener{
                     $event->setCancelled();
                     $this->test($event->getDamager(), $event->getDamager()->getInventory()->getItemInHand()->getId());
                 }
-                if($this->isSpectator($event->getDamager()) and $event->getEntity() instanceof Player) {
-                    if($this->isSpectator($event->getEntity())) {
-                        $this->teleportTask->add($event->getEntity());
-                    }
+                if($this->isSpectator($event->getDamager()) and $event->getDamager()->getInventory()->getItemInHand()->getId() == 0) {
+                    $this->teleportTask->add($event->getDamager(), $event->getEntity());
                 }
             }
         }
@@ -126,17 +135,21 @@ class Main extends PluginBase implements Listener{
     
     
     public function onPlayerGameModeChange(PlayerGameModeChangeEvent $event) {
+        // print_r($this->players);
         if($event->getNewGamemode() == 3) { // Testing if spectator.
             $player = $event->getPlayer();
             $this->players[$player->getName()] = [];
-            $this->lastPlayer = $player;
-            $player->setDisplayedName(\pocketmine\utils\TextFormat::GRAY . "[SPEC] " . $event->getPlayer()->getName());
-        } elseif($this->lastPlayer !== $event->getPlayer() and isset($this->players[$event->getPlayer()->getName()])) {
+            $this->lastPlayer = $player->getName();
+            $player->setDisplayName(\pocketmine\utils\TextFormat::GRAY . "[SPEC] " . $event->getPlayer()->getName());
+        } elseif($this->lastPlayer !== $event->getPlayer()->getName() and isset($this->players[$event->getPlayer()->getName()])) {
+            $this->getLogger()->info("Removed {$event->getPlayer()->getName()}");
             unset($this->players[$event->getPlayer()->getName()]);
             $event->getPlayer()->setAllowFlight(false);
             $event->getPlayer()->getInventory()->clearAll();
+            // $this->lastPlayer = null;
+            $event->getPlayer()->setDisplayName($event->getPlayer()->getName());
+        } elseif($this->lastPlayer == $event->getPlayer()->getName()) {
             $this->lastPlayer = null;
-            $event->getPlayer()->setDisplayedName($event->getPlayer()->getName());
         }
     }
     
@@ -159,7 +172,7 @@ class Main extends PluginBase implements Listener{
     
     public function onPlayerJoin(PlayerJoinEvent $event) {
         if(isset($this->quitedplayers[$event->getPlayer()->getName()])) {
-            $this->players[$player->getName()] = [];
+            $this->players[$event->getPlayer()->getName()] = [];
             unset($this->quitedplayers[$event->getPlayer()->getName()]);
         }
     }
@@ -209,29 +222,53 @@ class setGamemodeTask extends \pocketmine\scheduler\PluginTask {
 
 
 
-class setGamemodeTask extends \pocketmine\scheduler\PluginTask {
+class teleportTask extends \pocketmine\scheduler\PluginTask {
     
     public function __construct(Main $main) {
         parent::__construct($main);
         $this->main = $main;
-        $this->players = null;
+        $this->players = [];
     }
     
     
    public function onRun($tick) {
        foreach($this->players as $pname => $tpname) {
            $p = $this->main->getServer()->getPlayer($pname);
-           $tp = $this->main->getServer()->getPlayer($tpname);
-           if($p instanceof Player and $tp instanceof Player) {
-               $p->teleport(new Vector3($tp->x, $tp->y, $tp->z));
+           $tp = $p->getLevel()->getEntity($tpname);
+           // $this->main->getLogger()->info("Processing $pname and $tpname");
+           if($p instanceof Player) {
+               $tp = $p->getLevel()->getEntity($tpname);
+               if($tp instanceof Entity) {
+                   $p->teleport(new Vector3($tp->x, $tp->y + 0.5, $tp->z), $tp->yaw, $tp->pitch);
+               }
            }
        }
    } 
    
    
    
-   public function add(Player $player, Player $to) {
-       $this->players[$player->getName()] = $to->getName();
+   public function add(Player $player, Entity $to) {
+       $this->players[$player->getName()] = $to->getId();
+       $item = Item::get(Item::FEATHER, 0, 1);
+       $item->setNamedTag(NBT::parseJSON('{display:{Name:"§r' . $this->main->getConfig()->get("EscapeViewName") . '"}}'));
+       $player->getInventory()->addItem($item);
+       $e = \pocketmine\entity\Effect::getEffectByName("INVISIBILITY");
+       $e->setVisible(false);
+       $player->addEffect($e);
+   }
+   
+   
+   
+   public function remove(Player $player) {
+       if(isset($this->players[$player->getName()])) {
+           unset($this->players[$player->getName()]);
+           $player->removeEffect(14);
+           $item = Item::get(Item::FEATHER, 0, 1);
+           $item->setNamedTag(NBT::parseJSON('{display:{Name:"§r' . $this->main->getConfig()->get("EscapeViewName") . '"}}'));
+           $player->getInventory()->removeItem($item); 
+           return true;
+       }
+       return false;
    }
     
 }

@@ -11,6 +11,8 @@ LobbyMessage: Welcome back to lobby {player}
 TPCompassName: Find player
 # Here is the name of the back-to-lobby bed.
 BedBackName: Back to lobby
+# Here is the name of the escape player's view feather.
+EscapeViewName: Escape view
 
 # Name of the lobby world
 LobbyWorld: world
