@@ -6,6 +6,8 @@ use pocketmine\event\Listener;
 use pocketmine\plugin\PluginBase;
 use pocketmine\event\player\PlayerGameModeChangeEvent;
 use pocketmine\event\player\PlayerInteractEvent;
+use pocketmine\event\player\PlayerQuitEvent;
+use pocketmine\event\player\PlayerJoinEvent;
 use pocketmine\event\player\PlayerChatEvent;
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\BlockPlaceEvent;
@@ -25,7 +27,9 @@ class Main extends PluginBase implements Listener{
         $this->reloadConfig();
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
         $this->getServer()->getScheduler()->scheduleRepeatingTask(new setGamemodeTask($this), 5);
+        $this->getServer()->getScheduler()->scheduleRepeatingTask($this->teleportTask = new teleportTask($this), 5);
         $this->players = [];
+        $this->quitedplayers = [];
         $this->lastPlayer = null;
     }
     
@@ -100,6 +104,11 @@ class Main extends PluginBase implements Listener{
                     $event->setCancelled();
                     $this->test($event->getDamager(), $event->getDamager()->getInventory()->getItemInHand()->getId());
                 }
+                if($this->isSpectator($event->getDamager()) and $event->getEntity() instanceof Player) {
+                    if($this->isSpectator($event->getEntity())) {
+                        $this->teleportTask->add($event->getEntity());
+                    }
+                }
             }
         }
     }
@@ -121,11 +130,13 @@ class Main extends PluginBase implements Listener{
             $player = $event->getPlayer();
             $this->players[$player->getName()] = [];
             $this->lastPlayer = $player;
+            $player->setDisplayedName(\pocketmine\utils\TextFormat::GRAY . "[SPEC] " . $event->getPlayer()->getName());
         } elseif($this->lastPlayer !== $event->getPlayer() and isset($this->players[$event->getPlayer()->getName()])) {
             unset($this->players[$event->getPlayer()->getName()]);
             $event->getPlayer()->setAllowFlight(false);
             $event->getPlayer()->getInventory()->clearAll();
             $this->lastPlayer = null;
+            $event->getPlayer()->setDisplayedName($event->getPlayer()->getName());
         }
     }
     
@@ -137,7 +148,24 @@ class Main extends PluginBase implements Listener{
     
     
     
+    public function onPlayerQuit(PlayerQuitEvent $event) {
+        if($this->isSpectator($event->getPlayer())) {
+            $this->quitedplayers[$event->getPlayer()->getName()] = true;
+            unset($this->players[$event->getPlayer()->getName()]);
+        }
+    }
+    
+    
+    
+    public function onPlayerJoin(PlayerJoinEvent $event) {
+        if(isset($this->quitedplayers[$event->getPlayer()->getName()])) {
             $this->players[$player->getName()] = [];
+            unset($this->quitedplayers[$event->getPlayer()->getName()]);
+        }
+    }
+    
+    
+    
     public function onCommand(CommandSender $sender, Command $cmd, $label, array $args){
         switch($cmd->getName()){
             case "default":
@@ -177,4 +205,33 @@ class setGamemodeTask extends \pocketmine\scheduler\PluginTask {
             }
         }
     }
+}
+
+
+
+class setGamemodeTask extends \pocketmine\scheduler\PluginTask {
+    
+    public function __construct(Main $main) {
+        parent::__construct($main);
+        $this->main = $main;
+        $this->players = null;
+    }
+    
+    
+   public function onRun($tick) {
+       foreach($this->players as $pname => $tpname) {
+           $p = $this->main->getServer()->getPlayer($pname);
+           $tp = $this->main->getServer()->getPlayer($tpname);
+           if($p instanceof Player and $tp instanceof Player) {
+               $p->teleport(new Vector3($tp->x, $tp->y, $tp->z));
+           }
+       }
+   } 
+   
+   
+   
+   public function add(Player $player, Player $to) {
+       $this->players[$player->getName()] = $to->getName();
+   }
+    
 }
