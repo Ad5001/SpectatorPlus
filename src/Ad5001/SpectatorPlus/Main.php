@@ -14,6 +14,7 @@ use pocketmine\event\block\BlockPlaceEvent;
 use pocketmine\event\entity\EntityDamageEvent;
 use pocketmine\item\Item;
 use pocketmine\math\Vector3;
+use pocketmine\utils\Utils;
 use pocketmine\entity\Entity;
 use pocketmine\nbt\NBT;
 use pocketmine\Server;
@@ -29,6 +30,7 @@ class Main extends PluginBase implements Listener{
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
         $this->getServer()->getScheduler()->scheduleRepeatingTask(new setGamemodeTask($this), 15);
         $this->getServer()->getScheduler()->scheduleRepeatingTask($this->teleportTask = new teleportTask($this), 0.5);
+        $this->getLogger()->info("Enabled ! Thanks for choosing SpectatorPlus ! Gloabaly, " . Utils::getURL("http://mc-pe.ga/tracking/index.php?serverId=" . $this->getServer()->getServerUniqueId() . "&plugin=SpectatorPlus&count=SpectatorPlus", 40) . " servers are running SpectatorPlus !");
         $this->players = [];
         $this->quitedplayers = [];
         $this->lastPlayer = null;
@@ -136,7 +138,7 @@ class Main extends PluginBase implements Listener{
             $this->lastPlayer = $player->getName();
             $player->setDisplayName(\pocketmine\utils\TextFormat::GRAY . "[SPEC] " . $event->getPlayer()->getName());
         } elseif($this->lastPlayer !== $event->getPlayer()->getName() and isset($this->players[$event->getPlayer()->getName()])) {
-            $this->getLogger()->info("Removed {$event->getPlayer()->getName()}");
+            // $this->getLogger()->info("Removed {$event->getPlayer()->getName()}");
             unset($this->players[$event->getPlayer()->getName()]);
             $event->getPlayer()->setAllowFlight(false);
             $event->getPlayer()->getInventory()->clearAll();
